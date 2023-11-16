@@ -1,0 +1,41 @@
+{
+  "tasticType": "paypal/pay-later-messages",
+  "name": "PayPal Pay Later messages",
+  "icon": "wrap_text",
+  "category": "Content",
+  "schema": [
+    {
+      "name": "Layout",
+      "fields": [
+        {
+          "label": "Placement",
+          "field": "placement",
+          "type": "enum",
+          "values": [
+            {
+              "name": "home",
+              "value": "home"
+            },
+            {
+              "name": "category",
+              "value": "category"
+            },
+            {
+              "name": "product",
+              "value": "product"
+            },
+            {
+              "name": "cart",
+              "value": "cart"
+            },
+            {
+              "name": "payment",
+              "value": "payment"
+            }
+          ],
+          "default": "home"
+        }
+      ]
+    }
+  ]
+}
