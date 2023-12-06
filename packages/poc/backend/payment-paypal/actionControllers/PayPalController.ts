@@ -317,3 +317,36 @@ export const approveVaultSetupToken = async (request: Request, actionContext: Ac
     sessionData: request.sessionData,
   };
 };
+
+export const authenticateThreeDSOrder = async (request: Request, actionContext: ActionContext) => {
+  const paymentApi = new PaymentApi(actionContext.frontasticContext, getLocale(request), getCurrency(request));
+
+  const requestBody = JSON.parse(request.body) as {
+    paymentId: string;
+    paymentVersion: number;
+    orderID: string;
+  };
+
+  const result = await paymentApi.getThreeDSOrderAuthenticationResults(
+    requestBody.orderID,
+    requestBody.paymentVersion,
+    requestBody.paymentId,
+  );
+
+  const authentication_result = JSON.parse(result.getPayPalOrderResponse).payment_source.card.authentication_result as {
+    liability_shift: string;
+    three_d_secure: {
+      enrollment_status: string;
+      authentication_status: string;
+    };
+  };
+
+  return {
+    statusCode: 200,
+    body: JSON.stringify({
+      version: result.version,
+      approve: authentication_result,
+    }),
+    sessionData: request.sessionData,
+  };
+};

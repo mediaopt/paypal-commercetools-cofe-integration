@@ -416,4 +416,39 @@ export class PaymentApi extends BaseApi {
       throw error;
     }
   };
+
+  getThreeDSOrderAuthenticationResults: (
+    orderID: string,
+    paymentVersion: number,
+    paymentId: string,
+  ) => Promise<{ getPayPalOrderResponse: string; version: number }> = async (
+    orderID: string,
+    paymentVersion: number,
+    paymentId: string,
+  ) => {
+    const getPayPalOrderRequestPayload = {
+      version: paymentVersion,
+      actions: [
+        {
+          action: 'setCustomField',
+          name: 'getPayPalOrderRequest',
+          value: JSON.stringify({ orderId: orderID }),
+        },
+      ],
+    };
+
+    try {
+      const response = await this.instance.post<{
+        custom: { fields: { getPayPalOrderResponse: string } };
+        version: number;
+      }>(`/payments/${paymentId}`, getPayPalOrderRequestPayload);
+
+      return {
+        getPayPalOrderResponse: response.data.custom.fields.getPayPalOrderResponse,
+        version: response.data.version,
+      };
+    } catch (error) {
+      throw error;
+    }
+  };
 }
