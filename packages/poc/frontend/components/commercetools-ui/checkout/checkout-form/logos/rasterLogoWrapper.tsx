@@ -9,6 +9,8 @@ import myBankImage from './rasterLogos/myBank.png';
 import epsImage from './rasterLogos/eps.png';
 import sepaImage from './rasterLogos/sepa.png';
 import venmoImage from './rasterLogos/venmo.png';
+import puiImage from './rasterLogos/PUI.png';
+import googlePay from './rasterLogos/googlePay.png';
 
 /*HERE ARE THE MAIN REQUIREMENTS TO THE BRAND LOGO
  *
@@ -35,9 +37,6 @@ import venmoImage from './rasterLogos/venmo.png';
  * przelewy24 - absolutely no requirements, provide 2 versions of logo - przelewy24 and p24. Selected przelewy because
  * 1) they use on own pages only this
  * 2) avoid confusion with other p24 (privat24 is one of the two main methods in Ukraine)
- *
- * sofort - used the button icon provided by paypal
- * https://developer.paypal.com/beta/apm-beta/additional-information/method-icons/
  *
  * BLIK - absolutely confusing guide somewhere inside a pdf at
  * https://blik.com/en/download/pobierz/recommendations-for-merchants,
@@ -84,13 +83,15 @@ type ImageData = {
 
 const logoImages = {
   paypalRadiobutton: [{ image: paypalImage, logoClass: LOGO_NEEDS_SPACE_STYLE }],
-  hostedFieldsRadiobutton: [{ image: masterCardImage }, { image: visaImage, logoClass: LOGO_NEEDS_LARGE_SPACE_STYLE }],
+  cardFieldsRadiobutton: [{ image: masterCardImage }, { image: visaImage, logoClass: LOGO_NEEDS_LARGE_SPACE_STYLE }],
   p24Radiobutton: [{ image: przelewy24Image }],
-  paylaterRadiobutton: [{ image: ppImage, logoClass: LOGO_NEEDS_SPACE_STYLE, textAfter: 'Pay later' }],
+  paylaterRadiobutton: [{ image: ppImage, logoClass: LOGO_NEEDS_SPACE_STYLE, textAfter: 'Pay Later' }],
   mybankRadiobutton: [{ image: myBankImage }],
   epsRadiobutton: [{ image: epsImage }],
   sepaRadiobutton: [{ image: sepaImage }],
   venmoRadiobutton: [{ image: venmoImage, logoClass: LOGO_NEEDS_LARGE_SPACE_STYLE }],
+  PayPalInvoiceRadiobutton: [{ image: puiImage, logoClass: LOGO_STYLE }],
+  googlePayRadiobutton: [{ image: googlePay }],
 };
 
 const ImageEntry = ({ image, paymentType, logoClass, textAfter }: ImageData) => {

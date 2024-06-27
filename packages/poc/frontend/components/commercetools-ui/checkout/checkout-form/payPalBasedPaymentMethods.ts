@@ -4,22 +4,16 @@ import { AvailablePaymentMethods } from '../../../../types';
 const localBanksOptions = { components: 'buttons,payment-fields,marks,funding-eligibility', clientId: 'test' };
 
 const availablePaymentMethods: AvailablePaymentMethods[] = [
-  { key: 'paypal' },
   {
-    key: 'paylater',
-    countries: ['AU', 'FR', 'DE', 'IT', 'ES', 'GB', 'US'],
-    additionalOptions: { enableFunding: 'paylater' },
-  },
-  { key: 'card' },
-  { key: 'sepa', countries: ['DE'] },
-  {
-    key: 'sofort',
-    countries: ['AT', 'BE', 'DE', 'NL', 'ES', 'GB'],
+    key: 'paypal',
     additionalOptions: {
-      ...localBanksOptions,
-      enableFunding: 'sofort',
+      enableFunding: 'paylater',
+      disableFunding: ['sepa', 'card', 'giropay', 'sofort'],
+      components: 'messages,buttons',
     },
   },
+
+  { key: 'sepa', countries: ['DE'] },
   {
     key: 'giropay',
     countries: ['DE'],
@@ -29,6 +23,7 @@ const availablePaymentMethods: AvailablePaymentMethods[] = [
     },
   },
   { key: 'venmo', countries: ['US'], additionalOptions: { enableFunding: 'venmo', buyerCountry: 'US' } },
+
   {
     key: 'bancontact',
     countries: ['BE'],

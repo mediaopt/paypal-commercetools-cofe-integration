@@ -5,7 +5,7 @@ import { useAccount } from 'frontastic';
 
 import { PayPal } from 'paypal-commercetools-client/dist/esm';
 
-import { useCart, usePayPalSettings } from '../../../frontastic';
+import { useCart, usePayPal } from '../../../frontastic';
 import { CartDetails } from 'frontastic/actions/cart';
 
 import { payPalCheckoutData } from '../checkout/checkout-form/payPalCheckoutData';
@@ -30,13 +30,20 @@ const buttonsStyle = (isProductPage = false): PayPalStyle => {
 const CartCheckout = ({ handleAddToCart, showPayPalDirectly = false, isProductPage = false }: Props) => {
   const [showPayPal, setShowPayPal] = useState(showPayPalDirectly);
   const { loggedIn } = useAccount();
+  const [shippingOptions, setShippingOptions] = useState([]);
+  const [acceptPayLater, setAcceptPayLater] = useState(false);
+  const { getSettings, updateOrderOnShippingChange, captureOrder } = usePayPal();
+
+  const router = useRouter();
+  const { checkout, removeItem, updateCart, getShippingMethods, setShippingMethod } = useCart();
 
   useEffect(() => {
     setShowPayPal(showPayPalDirectly);
   }, [showPayPalDirectly]);
 
-  const { checkout, removeItem, updateCart } = useCart();
-  const { acceptPayLater } = usePayPalSettings();
+  getSettings().then((value) => {
+    setAcceptPayLater(value?.acceptPayLater);
+  });
 
   const cartData = useCart().data;
   const demoItemsPrice = cartData?.sum?.centAmount ?? 0;
@@ -45,8 +52,25 @@ const CartCheckout = ({ handleAddToCart, showPayPalDirectly = false, isProductPa
     : 0;
   const demoPrice = (demoItemsPrice + demoShippingPrice) / 100;
 
-  const router = useRouter();
   const isCartCheckout = true;
+
+  useEffect(() => {
+    const shippingOptions = [];
+    getShippingMethods().then((data) => {
+      data.forEach(({ shippingMethodId, rates }) => {
+        rates.forEach((rate) => {
+          rate.locations.forEach((location) => {
+            shippingOptions.push({
+              shippingRateId: rate.shippingRateId,
+              countryCode: location.country,
+              shippingMethodId: shippingMethodId,
+            });
+          });
+        });
+      });
+      setShippingOptions(shippingOptions);
+    });
+  }, []);
 
   const manageCart = async () => {
     if (handleAddToCart) {
@@ -79,19 +103,31 @@ const CartCheckout = ({ handleAddToCart, showPayPalDirectly = false, isProductPa
             components: 'messages,buttons',
           }}
           style={buttonsStyle(isProductPage)}
-          onShippingChange={async ({ shipping_address }) => {
+          onShippingChange={async ({ shipping_address }, actions) => {
+            const { city, country_code: countryCode, postal_code: postalCode } = shipping_address;
+
+            const shippingOption = shippingOptions.find((shippingOption) => shippingOption.countryCode === countryCode);
+            if (!shippingOption) {
+              return actions.reject();
+            }
+
             const addressData = {
-              city: shipping_address.city,
-              country: shipping_address.country_code,
-              postalCode: shipping_address.postal_code,
+              city,
+              country: countryCode,
+              postalCode,
             };
             const updateCartPayload: CartDetails = {
               billing: { ...addressData },
               shipping: { ...addressData },
             };
-            updateCart(updateCartPayload);
+            await updateCart(updateCartPayload);
+            await setShippingMethod(shippingOption.shippingMethodId);
+            await updateOrderOnShippingChange();
+
+            return actions.resolve();
           }}
           paypalMessages={acceptPayLater ? payPalMessagesParams('cart', demoPrice.toString()) : undefined}
+          onApproveRedirectionUrl="https://poc-mediaopt2.frontend.site/cart"
         />
       ) : (
         <button

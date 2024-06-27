@@ -172,10 +172,11 @@ const Checkout = ({ shippingCountryOptions }: Props) => {
       billing: billingAddress,
       shipping: shippingAddress || billingAddress,
     });
-    await setShippingMethod(shippingMethods?.[0].shippingMethodId);
-    await checkout();
-    //TODO: figure out logic here
-    router.push('/thank-you');
+    const deliveryCountry = shippingAddress?.country ?? billingAddress.country;
+    const relevantShipping = shippingMethods?.find(({ rates }) =>
+      rates.some(({ locations }) => locations.some(({ country }) => country === deliveryCountry)),
+    );
+    if (relevantShipping) await setShippingMethod(relevantShipping.shippingMethodId);
     setSubmittingForm(false);
   };
 

@@ -78,7 +78,7 @@ const CheckoutForm = ({
     data.shippingPostalCode,
   ]);
 
-  const { cartInformation, invoiceData } = useCheckoutData(
+  const { cartInformation } = useCheckoutData(
     data,
     billingSameAsShipping,
     billingInformation,
@@ -110,6 +110,7 @@ const CheckoutForm = ({
             />
             <FormInput
               name="emailAddress"
+              inputType="email"
               inputAutoComplete="email"
               label={formatMessage({ id: 'emailAddress', defaultMessage: 'Email Address' })}
               value={data.emailAddress}
@@ -122,7 +123,7 @@ const CheckoutForm = ({
             </div>
             <FormInput
               name="streetName"
-              inputAutoComplete="given-name"
+              inputAutoComplete="address-line1"
               label={formatMessage({ id: 'street.name', defaultMessage: 'Street Name' })}
               value={data.streetName}
               onChange={updateFormInput}
@@ -168,7 +169,6 @@ const CheckoutForm = ({
                 </div>
                 <FormInput
                   name="shippingStreetName"
-                  inputAutoComplete="given-name"
                   label={formatMessage({ id: 'street.name', defaultMessage: 'Street Name' })}
                   value={data.shippingStreetName}
                   onChange={updateFormInput}
@@ -222,6 +222,7 @@ const CheckoutForm = ({
               <FormButton
                 buttonText={'Next >'}
                 onClick={() => {
+                  submitForm();
                   setIsAddressIncomplete(false);
                 }}
                 isDisabled={!isFormValid}
@@ -238,7 +239,7 @@ const CheckoutForm = ({
                   id: 'contactData',
                   defaultMessage: 'Email address',
                 }),
-                [[cartInformation.account.email]],
+                [[data.emailAddress]],
               )}
               <div className="mt-6 grid grid-flow-col grid-rows-5 gap-x-2 gap-y-1">
                 {formDataGroup(
@@ -266,11 +267,7 @@ const CheckoutForm = ({
                 isDisabled={!isFormValid}
               />
             </div>
-            <PaymentMethods
-              updateFormInput={updateFormInput}
-              invoiceData={invoiceData}
-              cartInformation={cartInformation}
-            />
+            <PaymentMethods updateFormInput={updateFormInput} cartInformation={cartInformation} />
           </>
         )}
       </div>

@@ -27,6 +27,7 @@ export const payPalCheckoutData = (
   router?: NextRouter,
   isCartCheckout = false,
   loggedIn = false,
+  resultPage = '/thank-you',
 ) => {
   const requestHeader = {
     'Frontastic-Session': cookieCutter.get ? cookieCutter.get('frontastic-session') : '',
@@ -35,18 +36,35 @@ export const payPalCheckoutData = (
 
   const baseUrl = 'https://poc-mediaopt2.frontastic.rocks/frontastic/action/';
 
-  const params = {
-    createPaymentUrl: `${baseUrl}payment/createPayment`,
+  const commonParams = {
     getSettingsUrl: `${baseUrl}settings/getPayPalSettings`,
     getClientTokenUrl: `${baseUrl}payment/getClientToken`,
+    createPaymentUrl: `${baseUrl}payment/createPayment`,
+  };
+
+  const vaultParams = {
+    getUserInfoUrl: loggedIn ? `${baseUrl}payment/getUserInfo` : undefined,
+    enableVaulting: loggedIn,
+  };
+
+  const params = {
+    ...commonParams,
     createOrderUrl: `${baseUrl}payment/createPayPalOrder`,
     onApproveUrl: `${baseUrl}payment/capturePayPalOrder`,
     authorizeOrderUrl: `${baseUrl}payment/authorizePayPalOrder`,
+    authenticateThreeDSOrderUrl: `${baseUrl}payment/authenticateThreeDSOrder`,
     shippingMethodId: '',
     cartInformation: cartInformation ? { ...dummyCartInformation, ...cartInformation } : { ...dummyCartInformation },
 
-    getUserInfoUrl: loggedIn ? `${baseUrl}payment/getUserInfo` : undefined,
-    enableVaulting: loggedIn,
+    ...vaultParams,
+  };
+
+  const vaultOnlyParams = {
+    ...commonParams,
+    createVaultSetupTokenUrl: `${baseUrl}payment/createVaultSetupToken`,
+    approveVaultSetupTokenUrl: `${baseUrl}payment/approveVaultSetupToken`,
+    shippingMethodId: '',
+    ...vaultParams,
   };
 
   const options = {
@@ -56,9 +74,27 @@ export const payPalCheckoutData = (
     commit: !isCartCheckout,
   };
 
+  type FraudnetPage =
+    | 'home-page'
+    | 'search-result-page'
+    | 'category-page'
+    | 'product-detail-page'
+    | 'cart-page'
+    | 'inline-cart-page'
+    | 'checkout-page';
+
+  const paypalInvoiceParams = {
+    merchantId: 'W3KJAHBNV5BS6',
+    pageId: 'checkout-page' as FraudnetPage,
+    invoiceBenefitsMessage:
+      'Once you place an order, pay within 30 days. Our partner Ratepay will send you the instructions.',
+    minPayableAmount: 5, //euro
+    maxPayableAmount: 2500, //euro
+  };
+
   const purchaseCallback = async (result, options) => {
     if (checkout && router) {
-      if (result?.cart?.shippingAddress?.streetName || loggedIn) {
+      if (result?.cart?.shippingAddress?.streetName || loggedIn || result?.payment_source?.pay_upon_invoice) {
         await checkout();
       } else {
         const { streetName, streetNumber, city, country, postalCode } = result.cart.shippingAddress ?? {};
@@ -79,8 +115,8 @@ export const payPalCheckoutData = (
         });
       }
 
-      router.push('/thank-you');
+      router.push(resultPage);
     } else console.log('Do something', result, options);
   };
-  return { requestHeader, params, options, purchaseCallback };
+  return { requestHeader, params, options, purchaseCallback, paypalInvoiceParams, baseUrl, vaultOnlyParams };
 };

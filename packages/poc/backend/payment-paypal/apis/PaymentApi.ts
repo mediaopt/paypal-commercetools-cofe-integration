@@ -3,6 +3,15 @@ import { BaseApi } from '@Commerce-commercetools/apis/BaseApi';
 
 import { CreatePayPalOrderData } from '../types';
 
+const siteUrl = 'https://poc-mediaopt2.frontend.site/';
+const checkoutUrl = `${siteUrl}checkout`;
+const vaultingContext = {
+  experience_context: {
+    return_url: siteUrl,
+    cancel_url: siteUrl,
+  },
+};
+
 const createOrderValue = (orderData: CreatePayPalOrderData) => {
   const { fraudNetSessionId, birthDate, countryCode, nationalNumber } = orderData;
   if (fraudNetSessionId && birthDate && countryCode && nationalNumber)
@@ -22,15 +31,24 @@ const createOrderValue = (orderData: CreatePayPalOrderData) => {
     const createOrderValueObject = { storeInVaultOnSuccess: orderData.storeInVault, paymentSource: {} };
     createOrderValueObject.paymentSource[orderData.paymentSource] = {
       experience_context:
-        orderData.paymentSource === 'paypal'
+        orderData.paymentSource === 'paypal' ||
+        orderData.paymentSource === 'card' ||
+        orderData.paymentSource === 'apple_pay'
           ? {
               //You need to create pages for these in CoFe
-              return_url: 'https://poc-mediaopt2.frontend.site/',
-              cancel_url: 'https://poc-mediaopt2.frontend.site/',
+              return_url: checkoutUrl,
+              cancel_url: siteUrl,
             }
           : undefined,
       vault_id: orderData.vaultId ?? undefined,
     };
+    if (orderData.verificationMethod && ['card', 'google_pay'].includes(orderData.paymentSource)) {
+      createOrderValueObject.paymentSource[orderData.paymentSource].attributes = {
+        verification: {
+          method: orderData.verificationMethod,
+        },
+      };
+    }
     return JSON.stringify(createOrderValueObject);
   }
 };
@@ -128,14 +146,34 @@ export class PaymentApi extends BaseApi {
     }
   };
 
+  getOrder: (
+    paymentId: string,
+  ) => Promise<{ PayPalOrderId: string; paymentVersion: number; data: Record<string, any> }> = async (
+    paymentId: string,
+  ) => {
+    try {
+      const response = await this.instance.get<{
+        custom: { fields: { PayPalOrderId: string } };
+        version: number;
+      }>(`/payments/${paymentId}`, {});
+
+      return {
+        PayPalOrderId: response.data.custom.fields.PayPalOrderId,
+        paymentVersion: response.data.version,
+        data: response.data,
+      };
+    } catch (error) {
+      throw error;
+    }
+  };
+
   captureOrder: (
     paymentId: string,
     paymentVersion: number,
-    orderID: string,
+    orderID?: string,
   ) => Promise<{ captureOrderData: string; paymentVersion: number }> = async (
     paymentId: string,
     paymentVersion: number,
-    orderID: string,
   ) => {
     const payload = {
       version: paymentVersion,
@@ -143,7 +181,7 @@ export class PaymentApi extends BaseApi {
         {
           action: 'setCustomField',
           name: 'capturePayPalOrderRequest',
-          value: JSON.stringify({ orderId: orderID }),
+          value: JSON.stringify({}),
         },
       ],
     };
@@ -226,6 +264,39 @@ export class PaymentApi extends BaseApi {
 
       return {
         clientToken: response.data.custom.fields.getClientTokenResponse,
+        paymentVersion: response.data.version,
+      };
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  updateOrderPrice: (
+    paymentId: string,
+    paymentVersion: number,
+  ) => Promise<{ updatePayPalOrderResponse: string; paymentVersion: number }> = async (
+    paymentId: string,
+    paymentVersion: number,
+  ) => {
+    const payload = {
+      version: paymentVersion,
+      actions: [
+        {
+          action: 'setCustomField',
+          name: 'updatePayPalOrderRequest',
+          value: '{}',
+        },
+      ],
+    };
+
+    try {
+      const response = await this.instance.post<{
+        custom: { fields: { updatePayPalOrderResponse: string } };
+        version: number;
+      }>(`/payments/${paymentId}`, payload);
+
+      return {
+        updatePayPalOrderResponse: response.data.custom.fields.updatePayPalOrderResponse,
         paymentVersion: response.data.version,
       };
     } catch (error) {
@@ -338,17 +409,17 @@ export class PaymentApi extends BaseApi {
         payment_source: {
           paypal: {
             usage_type: 'MERCHANT',
-            experience_context: {
-              return_url: 'https://poc-mediaopt2.frontend.site/',
-              cancel_url: 'https://poc-mediaopt2.frontend.site/',
-            },
+            ...vaultingContext,
           },
         },
       };
     } else if (paymentSource === 'card') {
       payloadValue = {
         payment_source: {
-          card: {},
+          card: {
+            verification_method: 'SCA_WHEN_REQUIRED',
+            ...vaultingContext,
+          },
         },
       };
     }
@@ -410,6 +481,41 @@ export class PaymentApi extends BaseApi {
 
       return {
         createPaymentTokenResponse: createPaymentTokenResponse,
+        version: response.data.version,
+      };
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  getThreeDSOrderAuthenticationResults: (
+    orderID: string,
+    paymentVersion: number,
+    paymentId: string,
+  ) => Promise<{ getPayPalOrderResponse: string; version: number }> = async (
+    orderID: string,
+    paymentVersion: number,
+    paymentId: string,
+  ) => {
+    const getPayPalOrderRequestPayload = {
+      version: paymentVersion,
+      actions: [
+        {
+          action: 'setCustomField',
+          name: 'getPayPalOrderRequest',
+          value: JSON.stringify({ orderId: orderID }),
+        },
+      ],
+    };
+
+    try {
+      const response = await this.instance.post<{
+        custom: { fields: { getPayPalOrderResponse: string } };
+        version: number;
+      }>(`/payments/${paymentId}`, getPayPalOrderRequestPayload);
+
+      return {
+        getPayPalOrderResponse: response.data.custom.fields.getPayPalOrderResponse,
         version: response.data.version,
       };
     } catch (error) {

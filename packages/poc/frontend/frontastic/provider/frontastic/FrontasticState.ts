@@ -30,20 +30,21 @@ import {
   getProjectSettings,
 } from '../../actions/cart';
 import { getWishlist, addToWishlist, removeLineItem, updateLineItem } from '../../actions/wishlist';
-import { getPayPalSettings } from '../../actions/paypal';
 import { createSession } from '../../actions/adyen';
 import { UseAccount } from './UseAccount';
 import { UseCart } from './UseCart';
 import { UseWishlist } from './UseWishlist';
 import { UseAdyen } from './UseAdyen';
-import { UsePayPalSettings } from './UsePayPalSettings';
+
+import { UsePayPal } from './UsePayPal';
+import { getSettings, updateOrderOnShippingChange, captureOrder } from '../../actions/paypal';
 
 export interface FrontasticState {
   useCart: UseCart;
   useAccount: UseAccount;
   useWishlist: UseWishlist;
   useAdyen: UseAdyen;
-  usePayPalSettings: UsePayPalSettings;
+  usePayPal: UsePayPal;
 }
 
 export const getFrontasticState = (): FrontasticState => {
@@ -88,8 +89,10 @@ export const getFrontasticState = (): FrontasticState => {
     useAdyen: {
       createSession,
     },
-    usePayPalSettings: {
-      ...getPayPalSettings(),
+    usePayPal: {
+      getSettings,
+      updateOrderOnShippingChange,
+      captureOrder,
     },
   };
 };

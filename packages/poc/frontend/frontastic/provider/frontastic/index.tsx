@@ -9,7 +9,7 @@ const initialState: FrontasticState = {
   useAccount: {} as any,
   useWishlist: {} as any,
   useAdyen: {} as any,
-  usePayPalSettings: {} as any,
+  usePayPal: {} as any,
 };
 
 export const FrontasticContext = React.createContext<FrontasticState>(initialState);
@@ -55,8 +55,8 @@ export const useAdyen = () => {
   return context.useAdyen;
 };
 
-export const usePayPalSettings = () => {
+export const usePayPal = () => {
   const context = React.useContext(FrontasticContext);
   checkContext(context);
-  return context.usePayPalSettings;
+  return context.usePayPal;
 };

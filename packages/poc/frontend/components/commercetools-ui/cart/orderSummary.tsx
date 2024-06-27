@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react';
+
 import { MouseEvent } from 'react';
 import { Cart } from '@Types/cart/Cart';
 import { LineItem } from '@Types/cart/LineItem';
@@ -8,6 +10,9 @@ import { Reference, ReferenceLink } from 'helpers/reference';
 import DiscountForm from '../discount-form';
 import Price from '../price';
 import CartCheckout from '../cart/cartCheckout';
+
+import { useRouter } from 'next/router';
+import { useCart, usePayPal } from '../../../frontastic';
 
 interface Props {
   readonly cart: Cart;
@@ -34,8 +39,55 @@ const OrderSummary = ({
   privacyLink,
 }: Props) => {
   //i18n messages
+  const [showPlaceOrder, setShowPlaceOrder] = useState(false);
+
   const { formatMessage: formatCartMessage } = useFormat({ name: 'cart' });
   const { t } = useTranslation(['checkout']);
+
+  const { captureOrder } = usePayPal();
+  const router = useRouter();
+  const cartItems = useCart();
+
+  const handlePlaceOrder = async () => {
+    const payments = cartItems.data?.payments;
+    if (payments) {
+      const payment = payments[payments.length - 1];
+
+      if (payment && 'debug' in payment) {
+        const { id, version } = JSON.parse(payment.debug);
+        if (id && version) {
+          const result = await captureOrder(id, version, router?.query?.order_id as string);
+          const { streetName, streetNumber, city, country, postalCode } = result.cart.shippingAddress ?? {};
+          const payer = result.orderData.payer;
+          await cartItems.checkout({
+            account: {
+              email: payer?.email_address ?? result.cart.email,
+            },
+            billing: {
+              firstName: payer?.name?.given_name ?? result.cart.firstName,
+              lastName: payer?.name?.surname ?? result.cart.lastName,
+              streetName,
+              streetNumber,
+              city,
+              country,
+              postalCode,
+            },
+          });
+          await router.push('/thank-you');
+        }
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handleShowPlaceOrder = () => {
+      setShowPlaceOrder(true);
+    };
+
+    if ('order_id' in router.query) {
+      handleShowPlaceOrder();
+    }
+  }, [router.query]);
 
   const submitButtonClassName = `${disableSubmitButton ? 'opacity-75 pointer-events-none' : ''} ${
     !showDiscountsForm ? 'mt-7' : ''
@@ -152,13 +204,21 @@ const OrderSummary = ({
       {showDiscountsForm && <DiscountForm cart={cart} className="py-10" />}
       {showSubmitButton && (
         <div>
-          <button type="submit" onClick={onSubmit} className={submitButtonClassName}>
-            {submitButtonLabel || formatCartMessage({ id: 'checkout.go', defaultMessage: 'Go to checkout' })}
-          </button>
+          {showPlaceOrder ? (
+            <button type="button" onClick={handlePlaceOrder} className={submitButtonClassName}>
+              Place Order
+            </button>
+          ) : (
+            <>
+              <button type="submit" onClick={onSubmit} className={submitButtonClassName}>
+                {submitButtonLabel || formatCartMessage({ id: 'checkout.go', defaultMessage: 'Go to checkout' })}
+              </button>
 
-          <div className="mt-2">
-            <CartCheckout showPayPalDirectly={false} />
-          </div>
+              <div className="mt-2">
+                <CartCheckout showPayPalDirectly={false} />
+              </div>
+            </>
+          )}
 
           {submitButtonLabel === formatCartMessage({ id: 'ContinueAndPay', defaultMessage: 'Continue and pay' }) && (
             <p className="px-1 py-5 text-center text-xs">

@@ -83,7 +83,7 @@ const CheckoutForm = ({ submitText, updateFormInput, submitForm, data, account }
     data.emailAddress = account.email;
   }
 
-  const { cartInformation, invoiceData } = useCheckoutData(
+  const { cartInformation } = useCheckoutData(
     data,
     billingSameAsShipping,
     billingInformation,
@@ -143,7 +143,7 @@ const CheckoutForm = ({ submitText, updateFormInput, submitForm, data, account }
           inverseLabel
           containerClassNames="flex items-center gap-4 col-span-full"
         />
-        <PaymentMethods updateFormInput={updateFormInput} invoiceData={invoiceData} cartInformation={cartInformation} />
+        <PaymentMethods updateFormInput={updateFormInput} cartInformation={cartInformation} />
       </div>
     </div>
   );

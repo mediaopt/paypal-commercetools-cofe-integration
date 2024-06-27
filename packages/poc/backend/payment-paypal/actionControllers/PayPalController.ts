@@ -54,14 +54,14 @@ export const createPayment = async (request: Request, actionContext: ActionConte
     centAmount: cart.sum.centAmount,
   };
 
-  const isThereInitBraintreeSamePayment = cart.payments.some(
-    (payment) =>
-      payment.paymentProvider === 'PayPal' &&
-      payment.paymentStatus === PaymentStatuses.INIT &&
-      payment.amountPlanned.centAmount === requestAmountPlanned.centAmount,
-  );
+  const lastPayment = cart.payments[cart.payments.length - 1];
+  const isThereInitPayPalSamePayment =
+    lastPayment &&
+    lastPayment.paymentProvider === 'PayPal' &&
+    lastPayment.paymentStatus === PaymentStatuses.INIT &&
+    lastPayment.amountPlanned.centAmount === requestAmountPlanned.centAmount;
 
-  if (!isThereInitBraintreeSamePayment) {
+  if (!isThereInitPayPalSamePayment) {
     cart = await cartApi.addPayment(cart, {
       id: Guid.newGuid(),
       paymentProvider: 'PayPal',
@@ -138,17 +138,26 @@ export const capturePayPalOrder = async (request: Request, actionContext: Action
   const paymentApi = new PaymentApi(actionContext.frontasticContext, getLocale(request), getCurrency(request));
   const cartApi = new CartApi(actionContext.frontasticContext, getLocale(request), getCurrency(request));
 
-  const requestBody = JSON.parse(request.body) as { paymentId: string; paymentVersion: number; orderID: string };
+  const requestBody = JSON.parse(request.body) as { paymentId: string; paymentVersion: number; orderID?: string };
 
-  const captureOrderResult = await paymentApi.captureOrder(
-    requestBody.paymentId,
-    requestBody.paymentVersion,
-    requestBody.orderID,
-  );
+  let cart = await CartFetcher.fetchCart(cartApi, request, actionContext);
+
+  const { version } = cart.payments.find(({ debug }) => JSON.parse(debug).id === requestBody.paymentId);
+
+  let orderId = requestBody.orderID;
+
+  if (!requestBody.orderID) {
+    const captureOrderResult = await paymentApi.getOrder(requestBody.paymentId);
+    if (captureOrderResult.PayPalOrderId) {
+      orderId = captureOrderResult.PayPalOrderId;
+    }
+  }
+
+  const captureOrderResult = await paymentApi.captureOrder(requestBody.paymentId, version, orderId);
 
   const { paymentVersion, captureOrderData } = captureOrderResult;
 
-  const cart = await CartFetcher.fetchCart(cartApi, request, actionContext);
+  cart = await CartFetcher.fetchCart(cartApi, request, actionContext);
 
   const response: Response = {
     statusCode: 200,
@@ -156,6 +165,23 @@ export const capturePayPalOrder = async (request: Request, actionContext: Action
       paymentVersion,
       orderData: JSON.parse(captureOrderData),
       cart,
+    }),
+    sessionData: request.sessionData,
+  };
+  return response;
+};
+
+export const getPayPalOrder = async (request: Request, actionContext: ActionContext) => {
+  const paymentApi = new PaymentApi(actionContext.frontasticContext, getLocale(request), getCurrency(request));
+
+  const requestBody = JSON.parse(request.body) as { paymentId: string; paymentVersion: number; orderID?: string };
+
+  const captureOrderResult = await paymentApi.getOrder(requestBody.paymentId);
+
+  const response: Response = {
+    statusCode: 200,
+    body: JSON.stringify({
+      orderData: captureOrderResult.data,
     }),
     sessionData: request.sessionData,
   };
@@ -313,6 +339,68 @@ export const approveVaultSetupToken = async (request: Request, actionContext: Ac
     body: JSON.stringify({
       createPaymentTokenResponse: JSON.parse(result.createPaymentTokenResponse),
       version: result.version,
+    }),
+    sessionData: request.sessionData,
+  };
+};
+
+export const updateOrderOnShippingChange = async (request: Request, actionContext: ActionContext) => {
+  const cartApi = new CartApi(actionContext.frontasticContext, getLocale(request), getCurrency(request));
+  const paymentApi = new PaymentApi(actionContext.frontasticContext, getLocale(request), getCurrency(request));
+
+  const cart = await CartFetcher.fetchCart(cartApi, request, actionContext);
+
+  const lastPaymentIndex = cart.payments.length - 1;
+  const { debug } = cart.payments[lastPaymentIndex];
+  const { id, version } = JSON.parse(debug);
+
+  const { updatePayPalOrderResponse, paymentVersion } = await paymentApi.updateOrderPrice(id, version);
+
+  return {
+    statusCode: 200,
+    body: JSON.stringify({
+      updateOrderPrice: JSON.parse(updatePayPalOrderResponse),
+      paymentVersion,
+    }),
+    sessionData: request.sessionData,
+  };
+};
+
+export const authenticateThreeDSOrder = async (request: Request, actionContext: ActionContext) => {
+  const paymentApi = new PaymentApi(actionContext.frontasticContext, getLocale(request), getCurrency(request));
+
+  const requestBody = JSON.parse(request.body) as {
+    paymentId: string;
+    paymentVersion: number;
+    orderID: string;
+  };
+
+  const isGPay = !!JSON.parse(request.body).isGPay;
+
+  const result = await paymentApi.getThreeDSOrderAuthenticationResults(
+    requestBody.orderID,
+    requestBody.paymentVersion,
+    requestBody.paymentId,
+  );
+
+  let orderResponse = JSON.parse(result.getPayPalOrderResponse).payment_source;
+  if (isGPay) {
+    orderResponse = orderResponse.google_pay;
+  }
+
+  const authentication_result = orderResponse.card.authentication_result as {
+    liability_shift: string;
+    three_d_secure: {
+      enrollment_status: string;
+      authentication_status: string;
+    };
+  };
+
+  return {
+    statusCode: 200,
+    body: JSON.stringify({
+      version: result.version,
+      approve: authentication_result,
     }),
     sessionData: request.sessionData,
   };

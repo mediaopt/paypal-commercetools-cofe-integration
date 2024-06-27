@@ -13,6 +13,6 @@ export type PaymentMethodsType = {
 export type AvailablePaymentMethods = {
   key: FUNDING_SOURCE;
   countries?: string[];
-  additionalOptions?: { [key: string]: string };
+  additionalOptions?: { [key: string]: string | string[] };
   component?: JSX.Element;
 };

@@ -2,15 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useAccount } from 'frontastic';
 
-import { PayPal, HostedFields } from 'paypal-commercetools-client/dist/esm';
+import { PayPal, PayUponInvoice, CardFields, ApplePay, GooglePay } from 'paypal-commercetools-client/dist/esm';
 
 import { useFormat } from '../../../../../helpers/hooks/useFormat';
 import { useCart } from '../../../../../frontastic';
-import { usePayPalSettings } from '../../../../../frontastic';
+import { usePayPal } from '../../../../../frontastic';
 
 import FormRadioGroup from './formRadioGroup';
-import FormInput from './formInput';
-import FormButton from './formButton';
 
 import { payPalCheckoutData } from '../payPalCheckoutData';
 import { payPalMessagesParams } from '../payPalMessagesParams';
@@ -53,11 +51,21 @@ const calculateDemoPrice = (cartData: Order) => {
   return (demoItemsPrice + demoShippingPrice) / 100;
 };
 
-export const PaymentMethods = ({ updateFormInput, cartInformation, invoiceData }) => {
+export const PaymentMethods = ({ updateFormInput, cartInformation }) => {
   const { checkout } = useCart();
+  const { getSettings } = usePayPal();
   const { loggedIn } = useAccount();
+  const [acceptPayLater, setAcceptPayLater] = useState(false);
+  const [acceptCredit, setAcceptCredit] = useState(false);
 
-  const { acceptPayLater, acceptCredit } = usePayPalSettings();
+  getSettings().then((settings) => {
+    if (settings) {
+      const { acceptPayLater, acceptCredit } = settings;
+      setAcceptPayLater(acceptPayLater);
+      setAcceptCredit(acceptCredit);
+    }
+  });
+
   const router = useRouter();
   const { formatMessage: formatCheckoutMessage } = useFormat({ name: 'checkout' });
 
@@ -69,13 +77,22 @@ export const PaymentMethods = ({ updateFormInput, cartInformation, invoiceData }
     lineItems.push(formatLineItem(item));
   });
 
-  const { requestHeader, params, options, purchaseCallback } = payPalCheckoutData(
+  const { requestHeader, params, options, purchaseCallback, paypalInvoiceParams } = payPalCheckoutData(
     cartInformation,
     checkout,
     router,
     false,
     loggedIn,
   );
+
+  const invoiceCallback = payPalCheckoutData(
+    cartInformation,
+    checkout,
+    router,
+    false,
+    loggedIn,
+    'thank-you-order-placed',
+  ).purchaseCallback;
 
   const methodIdBasedFields = (methodId: string) => {
     return {
@@ -88,8 +105,7 @@ export const PaymentMethods = ({ updateFormInput, cartInformation, invoiceData }
   const payPalBasedMethod = (method: AvailablePaymentMethods) => {
     const { key: methodId, countries, additionalOptions } = method;
 
-    const specificParams =
-      methodId === 'paylater' ? { paypalMessages: payPalMessagesParams('payment', demoPrice) } : {};
+    const specificParams = methodId === 'paypal' ? { paypalMessages: payPalMessagesParams('payment', demoPrice) } : {};
 
     return {
       ...methodIdBasedFields(methodId),
@@ -101,7 +117,7 @@ export const PaymentMethods = ({ updateFormInput, cartInformation, invoiceData }
             {...params}
             requestHeader={requestHeader}
             options={{ ...options, ...additionalOptions }}
-            fundingSource={methodId}
+            fundingSource={methodId !== 'paypal' ? methodId : undefined}
             {...specificParams}
           />
         </div>
@@ -114,43 +130,82 @@ export const PaymentMethods = ({ updateFormInput, cartInformation, invoiceData }
 
     const initialMethods: PaymentMethodsType = filteredMethods(acceptPayLater).map(payPalBasedMethod);
 
-    if (acceptCredit)
+    if (acceptCredit) {
       initialMethods.push({
-        ...methodIdBasedFields('hostedFields'),
+        ...methodIdBasedFields('cardFields'),
         component: (
-          <div className="mopt-hosted-fields col-span-full">
-            <HostedFields
+          <div className="mopt-card-fields col-span-full">
+            <CardFields
               purchaseCallback={purchaseCallback}
               requestHeader={requestHeader}
               {...params}
               options={{
                 ...options,
-                components: 'hosted-fields,buttons',
+                components: 'card-fields,buttons',
                 vault: false,
               }}
             />
           </div>
         ),
       });
+    }
+    initialMethods.push({
+      ...methodIdBasedFields('PayPalInvoice'),
+      label: 'Pay Upon Invoice',
+      component: (
+        <PayUponInvoice
+          options={options}
+          requestHeader={requestHeader}
+          {...params}
+          purchaseCallback={invoiceCallback}
+          {...paypalInvoiceParams}
+        />
+      ),
+    });
+
+    if ('ApplePaySession' in window) {
+      initialMethods.push({
+        ...methodIdBasedFields('applepay'),
+        component: (
+          <div className="mopt-card-fields col-span-full">
+            <ApplePay
+              purchaseCallback={purchaseCallback}
+              requestHeader={requestHeader}
+              {...params}
+              options={{
+                ...options,
+                components: 'applepay',
+                buyerCountry: 'US',
+              }}
+              applePayDisplayName="My Store"
+              enableVaulting={true}
+            />
+          </div>
+        ),
+      });
+    }
 
     initialMethods.push({
-      ...methodIdBasedFields('invoice'),
+      ...methodIdBasedFields('googlePay'),
       component: (
-        <div className="col-span-full">
-          <FormInput
-            name="invoiceId"
-            label={`${formatCheckoutMessage({ id: 'invoice', defaultMessage: 'Invoice' })} ID`}
-            value={invoiceData.invoiceValue}
-            onChange={updateFormInput}
-          />
-          <FormButton
-            buttonText={invoiceData.text}
-            onClick={invoiceData.clickAction}
-            isDisabled={invoiceData.invoiceValue.length === 0}
+        <div className="mopt-card-fields col-span-full">
+          <GooglePay
+            allowedCardNetworks={['MASTERCARD', 'VISA']}
+            allowedCardAuthMethods={['PAN_ONLY']}
+            callbackIntents={['PAYMENT_AUTHORIZATION']}
+            verificationMethod={'SCA_ALWAYS'}
+            purchaseCallback={purchaseCallback}
+            requestHeader={requestHeader}
+            {...params}
+            options={{
+              ...options,
+              components: 'googlepay',
+            }}
           />
         </div>
       ),
     });
+
     return initialMethods;
   }, [cartInformation, acceptCredit, acceptPayLater]);
 

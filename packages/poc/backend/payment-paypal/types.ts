@@ -29,9 +29,10 @@ type FUNDING_SOURCE =
   | 'multibanco';
 
 export type CreateOrderData = {
-  paymentSource?: FUNDING_SOURCE;
+  paymentSource?: FUNDING_SOURCE | 'apple_pay' | 'google_pay';
   storeInVault?: boolean;
   vaultId?: string;
+  verificationMethod?: string;
 };
 
 export type CreateInvoiceData = {
